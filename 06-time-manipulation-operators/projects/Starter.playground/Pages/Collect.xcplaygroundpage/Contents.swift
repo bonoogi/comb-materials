@@ -2,36 +2,59 @@ import Combine
 import SwiftUI
 import PlaygroundSupport
 
-<# Add your code here #>
+let 초당_값 = 1.0
+let 수집_시간 = 4
 
-//: [Next](@next)
-/*:
- Copyright (c) 2021 Razeware LLC
- 
- Permission is hereby granted, free of charge, to any person obtaining a copy
- of this software and associated documentation files (the "Software"), to deal
- in the Software without restriction, including without limitation the rights
- to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- copies of the Software, and to permit persons to whom the Software is
- furnished to do so, subject to the following conditions:
- 
- The above copyright notice and this permission notice shall be included in
- all copies or substantial portions of the Software.
- 
- Notwithstanding the foregoing, you may not use, copy, modify, merge, publish,
- distribute, sublicense, create a derivative work, and/or sell copies of the
- Software in any work that is designed, intended, or marketed for pedagogical or
- instructional purposes related to programming, coding, application development,
- or information technology.  Permission for such use, copying, modification,
- merger, publication, distribution, sublicensing, creation of derivative works,
- or sale is expressly withheld.
- 
- THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- THE SOFTWARE.
- */
+let 소스_퍼블리셔 = PassthroughSubject<Date, Never>()
+let 수집하는_퍼블리셔 = 소스_퍼블리셔
+    .collect(
+        .byTime(
+            DispatchQueue.main,
+            .seconds(수집_시간)
+        )
+    )
+    .flatMap { dates in dates.publisher }
 
+let 구독 = Timer
+    .publish(every: 1.0 / 초당_값, on: RunLoop.main, in: .common)
+    .autoconnect()
+    .subscribe(소스_퍼블리셔)
+
+let 소스_타임라인 = TimelineView(title: "Emitted values:")
+let 수집_타임라인 = TimelineView(title: "Collected values (every \(수집_시간)s):")
+
+//let view = VStack(spacing: 40) {
+//    소스_타임라인
+//    수집_타임라인
+//}
+
+//PlaygroundPage.current.liveView = UIHostingController(rootView: view.frame(width: 375, height: 600))
+
+소스_퍼블리셔.displayEvents(in: 소스_타임라인)
+수집하는_퍼블리셔.displayEvents(in: 수집_타임라인)
+
+// -------
+
+let 최대_수집_갯수 = 3
+
+let 수집_퍼블리셔2 = 소스_퍼블리셔
+    .collect(
+        .byTimeOrCount(
+            DispatchQueue.main,
+            .seconds(수집_시간),
+            최대_수집_갯수
+        )
+    )
+    .flatMap { $0.publisher }
+
+let 수집_타임라인2 = TimelineView(title: "Collected values (at most \(최대_수집_갯수) every \(수집_시간)s):")
+
+let 뷰 = VStack(spacing: 40) {
+    소스_타임라인
+    수집_타임라인
+    수집_타임라인2
+}
+
+PlaygroundPage.current.liveView = UIHostingController(rootView: 뷰.frame(width: 375, height: 600))
+
+수집_퍼블리셔2.displayEvents(in: 수집_타임라인2)

@@ -26,11 +26,19 @@
 /// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 /// THE SOFTWARE.
 
+import Combine
 import UIKit
 import Photos
 
 class CollageNeueModel: ObservableObject {
   static let collageSize = CGSize(width: UIScreen.main.bounds.width, height: 200)
+
+  private var subscriptions = Set<AnyCancellable>()
+  private let images = CurrentValueSubject<[UIImage], Never>([])
+  let updateUISubject = PassthroughSubject<Int, Never>()
+  private(set) var selectedPhotoSubject = PassthroughSubject<UIImage, Never>()
+
+  @Published var imagePreview: UIImage?
   
   // MARK: - Collage
   
@@ -38,19 +46,47 @@ class CollageNeueModel: ObservableObject {
   private(set) var lastErrorMessage = ""
 
   func bindMainView() {
-    
+    images
+      .handleEvents(receiveOutput: { [weak self] photos in
+        self?.updateUISubject.send(photos.count)
+      })
+      .map {
+        UIImage.collage(images: $0, size: Self.collageSize)
+      }
+      .assign(to: &$imagePreview)
   }
 
   func add() {
-    
+    selectedPhotoSubject = PassthroughSubject<UIImage, Never>()
+
+    let newPhotos = selectedPhotoSubject.share()
+      .prefix(while: { [unowned self] _ in
+        self.images.value.count < 6
+      })
+    newPhotos
+      .map { [unowned self] newImage in
+        return self.images.value + [newImage]
+      }
+      .assign(to: \.value, on: images)
+      .store(in: &subscriptions)
   }
 
   func clear() {
-    
+      images.send([])
   }
 
   func save() {
-    
+    guard let image = imagePreview else { return }
+    PhotoWriter.save(image)
+      .sink(receiveCompletion: { [unowned self] completion in
+        if case .failure(let error) = completion {
+          self.lastErrorMessage = error.localizedDescription
+        }
+        self.clear()
+      }, receiveValue: { [unowned self] value in
+        self.lastSavedPhotoID = value
+      })
+      .store(in: &subscriptions)
   }
   
   // MARK: -  Displaying photos picker
@@ -92,8 +128,7 @@ class CollageNeueModel: ObservableObject {
         // Skip the thumbnail version of the asset
         return
       }
-      
-      // Send the selected image
+      self.selectedPhotoSubject.send(image)
     }
   }
 }

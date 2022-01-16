@@ -84,11 +84,20 @@ struct PhotosView: View {
           }
         }
       }
+      PHPhotoLibrary
+        .isAuthorized()
+        .sink { status in
+          if status {
+            print(Thread.current)
+            self.photos = model.loadPhotos()
+          }
+        }
+        .store(in: &subscriptions)
       
       model.bindPhotoPicker()
     }
     .onDisappear {
-      
+      model.selectedPhotoSubject.send(completion: .finished)
     }
   }
 }

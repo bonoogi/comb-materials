@@ -46,5 +46,23 @@ extension PHPhotoLibrary {
       callback(newStatus == .authorized)
     }
   }
+
+  static func isAuthorized() -> Future<Bool, Never> {
+    return Future { resolve in
+      // Fetch the current status.
+      let currentlyAuthorized = authorizationStatus() == .authorized
+
+      // If authozied callback immediately.
+      guard !currentlyAuthorized else {
+        resolve(.success(currentlyAuthorized))
+        return
+      }
+
+      // Otherwise request access and callback with the new status.
+      requestAuthorization { newStatus in
+        resolve(.success(newStatus == .authorized))
+      }
+    }
+  }
 }
 

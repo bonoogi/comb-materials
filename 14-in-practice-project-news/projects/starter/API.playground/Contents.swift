@@ -3,48 +3,99 @@ import PlaygroundSupport
 import Combine
 
 struct API {
-  /// API Errors.
-  enum Error: LocalizedError {
-    case addressUnreachable(URL)
-    case invalidResponse
-    
-    var errorDescription: String? {
-      switch self {
-      case .invalidResponse: return "The server responded with garbage."
-      case .addressUnreachable(let url): return "\(url.absoluteString) is unreachable."
-      }
-    }
-  }
-  
-  /// API endpoints.
-  enum EndPoint {
-    static let baseURL = URL(string: "https://hacker-news.firebaseio.com/v0/")!
-    
-    case stories
-    case story(Int)
-    
-    var url: URL {
-      switch self {
-      case .stories:
-        return EndPoint.baseURL.appendingPathComponent("newstories.json")
-      case .story(let id):
-        return EndPoint.baseURL.appendingPathComponent("item/\(id).json")
-      }
-    }
-  }
+    /// API Errors.
+    enum Error: LocalizedError {
+        case addressUnreachable(URL)
+        case invalidResponse
 
-  /// Maximum number of stories to fetch (reduce for lower API strain during development).
-  var maxStories = 10
+        var errorDescription: String? {
+            switch self {
+            case .invalidResponse: return "The server responded with garbage."
+            case .addressUnreachable(let url): return "\(url.absoluteString) is unreachable."
+            }
+        }
+    }
+    
+    /// API endpoints.
+    enum EndPoint {
+        static let baseURL = URL(string: "https://hacker-news.firebaseio.com/v0/")!
+        
+        case stories
+        case story(Int)
+        
+        var url: URL {
+            switch self {
+            case .stories:
+                return EndPoint.baseURL.appendingPathComponent("newstories.json")
+            case .story(let id):
+                return EndPoint.baseURL.appendingPathComponent("item/\(id).json")
+            }
+        }
+    }
 
-  /// A shared JSON decoder to use in calls.
-  private let decoder = JSONDecoder()
-  
-  // <#Add your API code here#>
+      /// Maximum number of stories to fetch (reduce for lower API strain during development).
+      var maxStories = 10
+
+    /// A shared JSON decoder to use in calls.
+    private let decoder = JSONDecoder()
+    private let apiQueue = DispatchQueue(label: "API",
+                                         qos: .default,
+                                         attributes: .concurrent)
+
+    func story(id: Int) -> AnyPublisher<Story, Swift.Error> {
+        return URLSession.shared
+            .dataTaskPublisher(for: EndPoint.story(id).url)
+            .receive(on: apiQueue)
+            .map(\.data)
+            .decode(type: Story.self, decoder: decoder)
+            .catch { _ in Empty<Story, Swift.Error>() }
+            .eraseToAnyPublisher()
+    }
+
+    func mergedStories(ids: [Int]) -> AnyPublisher<Story, Swift.Error> {
+        let storyIDs = Array(ids.prefix(maxStories))
+        precondition(!storyIDs.isEmpty)
+        let initialPublisher = story(id: storyIDs[0])
+        let remainder = Array(storyIDs.dropFirst())
+        return remainder.reduce(initialPublisher) { combined, id in
+            return combined.merge(with: story(id: id))
+                .eraseToAnyPublisher()
+        }
+    }
+
+    func stories() -> AnyPublisher<[Story], Swift.Error> {
+        return URLSession.shared.dataTaskPublisher(for: EndPoint.stories.url)
+            .receive(on: apiQueue)
+            .map(\.data)
+            .decode(type: [Int].self, decoder: decoder)
+            .mapError { error -> API.Error in
+                switch error {
+                case is URLError:
+                    return API.Error.addressUnreachable(EndPoint.stories.url)
+                default:
+                    return API.Error.invalidResponse
+                }
+            }
+            .filter { !$0.isEmpty }
+            .flatMap { ids in
+                return self.mergedStories(ids: ids)
+            }
+            .scan([], { stories, story -> [Story] in
+                return stories + [story]
+            })
+            .map { $0.sorted() }
+            .eraseToAnyPublisher()
+    }
   
 }
 
-// <#Call the API here#>
+let api = API()
+var subscriptions = [AnyCancellable]()
 
+api.stories()
+    .sink(receiveCompletion: { print($0) },
+          receiveValue: { print($0) })
+    .store(in: &subscriptions)
 
 // Run indefinitely.
 PlaygroundPage.current.needsIndefiniteExecution = true

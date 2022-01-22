@@ -26,58 +26,74 @@
 /// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 /// THE SOFTWARE.
 
+import Combine
 import SwiftUI
 
 struct ReaderView: View {
-  var model: ReaderViewModel
-  var presentingSettingsSheet = false
+    @ObservedObject var model: ReaderViewModel
+    @Environment(\.colorScheme) var colorScheme: ColorScheme
+    @EnvironmentObject var settings: Settings
+    @State var presentingSettingsSheet = false
 
-  var currentDate = Date()
-  
-  init(model: ReaderViewModel) {
-    self.model = model
-  }
-  
-  var body: some View {
-    let filter = "Showing all stories"
-    
-    return NavigationView {
-      List {
-        Section(header: Text(filter).padding(.leading, -10)) {
-          ForEach(self.model.stories) { story in
-            VStack(alignment: .leading, spacing: 10) {
-              TimeBadge(time: story.time)
-              
-              Text(story.title)
-                .frame(minHeight: 0, maxHeight: 100)
-                .font(.title)
-              
-              PostedBy(time: story.time, user: story.by, currentDate: self.currentDate)
-              
-              Button(story.url) {
-                print(story)
-              }
-              .font(.subheadline)
-              .foregroundColor(Color.blue)
-              .padding(.top, 6)
-            }
-            .padding()
-          }
-          // Add timer here
-        }.padding()
-      }
-      .listStyle(PlainListStyle())
-      // Present the Settings sheet here
-      // Display errors here
-      .navigationBarTitle(Text("\(self.model.stories.count) Stories"))
-      .navigationBarItems(trailing:
-        Button("Settings") {
-          // Set presentingSettingsSheet to true here
-          
-        }
-      )
+    private let timer = Timer.publish(every: 10, on: .main, in: .common)
+        .autoconnect()
+        .eraseToAnyPublisher()
+    @State var currentDate = Date()
+
+    init(model: ReaderViewModel) {
+        self.model = model
     }
-  }
+
+    var body: some View {
+        return NavigationView {
+            List {
+                Section(header: Text(model.filterStatus).padding(.leading, -10)) {
+                    ForEach(self.model.stories) { story in
+                        VStack(alignment: .leading, spacing: 10) {
+                            TimeBadge(time: story.time)
+
+                            Text(story.title)
+                                .frame(minHeight: 0, maxHeight: 100)
+                                .font(.title)
+
+                            PostedBy(time: story.time, user: story.by, currentDate: self.currentDate)
+
+                            Button(story.url) {
+                                print(story)
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(self.colorScheme == .light ? .blue : .orange)
+                            .padding(.top, 6)
+                        }
+                        .padding()
+                    }
+                    .onReceive(timer) {
+                        self.currentDate = $0
+                    }
+                }.padding()
+            }
+            .listStyle(PlainListStyle())
+            .sheet(
+                isPresented: self.$presentingSettingsSheet,
+                content: {
+                    SettingsView()
+                        .environmentObject(settings)
+                })
+            // Display errors here
+            .alert(item: self.$model.error, content: { error in
+                Alert(title: Text("Network Error"),
+                      message: Text(error.localizedDescription),
+                      dismissButton: .cancel())
+            })
+            .navigationBarTitle(Text("\(self.model.stories.count) Stories"))
+            .navigationBarItems(trailing:
+                                    Button("Settings") {
+                // Set presentingSettingsSheet to true here
+                self.presentingSettingsSheet = true
+            }
+            )
+        }
+    }
 }
 
 #if DEBUG

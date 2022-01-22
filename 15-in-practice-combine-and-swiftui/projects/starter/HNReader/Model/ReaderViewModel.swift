@@ -26,25 +26,50 @@
 /// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 /// THE SOFTWARE.
 
+import Combine
 import Foundation
 
-class ReaderViewModel {
-  private let api = API()
-  private var allStories = [Story]()
+class ReaderViewModel: ObservableObject {
+    private let api = API()
+    @Published private var allStories = [Story]()
+    private var subscriptions = Set<AnyCancellable>()
 
-  var filter = [String]()
-  
-  var stories: [Story] {
-    guard !filter.isEmpty else {
-      return allStories
-    }
-    return allStories
-      .filter { story -> Bool in
-        return filter.reduce(false) { isMatch, keyword -> Bool in
-          return isMatch || story.title.lowercased().contains(keyword)
+    @Published var filter = [String]()
+
+    var filterStatus: String {
+        guard !filter.isEmpty else {
+            return "Showing all stories"
         }
-      }
-  }
-  
-  var error: API.Error? = nil
+        return "Filter: \(filter.joined(separator: ", "))"
+    }
+
+    var stories: [Story] {
+        guard !filter.isEmpty else {
+            return allStories
+        }
+        return allStories
+            .filter { story -> Bool in
+                return filter.reduce(false) { isMatch, keyword -> Bool in
+                    return isMatch || story.title.lowercased().contains(keyword)
+                }
+            }
+    }
+
+    @Published var error: API.Error? = nil
+
+    func fetchStories() {
+        api.stories()
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { [weak self] completion in
+                switch completion {
+                case .failure(let error):
+                    self?.error = error
+                case .finished: break
+                }
+            }, receiveValue: { [weak self] stories in
+                self?.allStories = stories
+                self?.error = nil
+            })
+            .store(in: &subscriptions)
+    }
 }

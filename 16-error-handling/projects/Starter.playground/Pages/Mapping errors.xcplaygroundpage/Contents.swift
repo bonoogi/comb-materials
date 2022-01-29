@@ -4,7 +4,7 @@ import Combine
 
 var subscriptions = Set<AnyCancellable>()
 //:## Mapping errors
-<#Add your code here#>
+
 //: [Next](@next)
 
 /// Copyright (c) 2021 Razeware LLC

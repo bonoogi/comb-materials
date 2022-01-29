@@ -4,7 +4,54 @@ import Combine
 
 var subscriptions = Set<AnyCancellable>()
 //: ## try* operators
-<#Add your code here#>
+example(of: "map vs tryMap") {
+    enum NameError: Error {
+        case tooShort(String)
+        case unknown
+    }
+    Just("Hello")
+        .setFailureType(to: NameError.self)
+        .tryMap { throw NameError.tooShort($0) }
+        .mapError { $0 as? NameError ?? .unknown }
+        .sink { completion in
+            switch completion {
+            case .finished:
+                print("Finish")
+            case .failure(.tooShort(let name)):
+                print("\(name) is too short!")
+            case .failure(.unknown):
+                print("??")
+            }
+        } receiveValue: { value in
+            print("got \(value)")
+        }
+
+}
+//example(of: "tryMap") {
+//    enum NameError: Error {
+//        case tooShort(String)
+//        case unknown
+//    }
+//    let names = ["Marin", "Shai", "Florent"].publisher
+//    names
+//        .tryMap { value -> Int in
+//            let length = value.count
+//            guard length >= 5 else {
+//                throw NameError.tooShort(value)
+//            }
+//            return value.count
+//        }
+//        .sink { completion in
+//            switch completion {
+//            case .finished:
+//                print("Finish")
+//            case .failure(let error):
+//                print("fail with \(error)")
+//            }
+//        } receiveValue: { value in
+//            print("Got Value: \(value)")
+//        }
+//}
 //: [Next](@next)
 
 /// Copyright (c) 2021 Razeware LLC

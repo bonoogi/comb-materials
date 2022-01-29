@@ -4,7 +4,30 @@ import Combine
 
 var subscriptions = Set<AnyCancellable>()
 //: ## Catching and retrying
-<#Add your code here#>
+let photoService = PhotoService()
+example(of: "Catshing and retrying") {
+    photoService
+        .fetchPhoto(quality: .high)
+        .handleEvents(
+            receiveSubscription: { _ in print("Trying...") },
+            receiveCompletion: {
+                guard case .failure(let error) = $0 else { return }
+                print("Got error: \(error)")
+            }
+        )
+        .retry(3)
+        .catch({ error -> PhotoService.Publisher in
+            print("Failed fetching high quality, falling back to low quality")
+            return photoService.fetchPhoto(quality: .low)
+        })
+        .sink { completion in
+            print("completion: \(completion)")
+        } receiveValue: { value in
+            value
+            print("image: \(value)")
+        }
+        .store(in: &subscriptions)
+}
 
 /// Copyright (c) 2021 Razeware LLC
 ///

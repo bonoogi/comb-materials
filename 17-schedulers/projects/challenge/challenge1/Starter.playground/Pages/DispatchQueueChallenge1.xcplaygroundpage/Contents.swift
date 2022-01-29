@@ -1,4 +1,4 @@
-fimport Combine
+import Combine
 import SwiftUI
 import PlaygroundSupport
 
@@ -13,7 +13,9 @@ let subscription = sourceQueue.schedule(after: sourceQueue.now, interval: .secon
 let setupPublisher = { recorder in
   return source
     .recordThread(using: recorder)
-    .receive(on: serialQueue)
+    .receive(
+        on: serialQueue
+    )
     .recordThread(using: recorder)
     .eraseToAnyPublisher()
 }
@@ -24,7 +26,15 @@ PlaygroundPage.current.liveView = UIHostingController(rootView: view)
 // Challenge 1: first method
 
 
+serialQueue.schedule(after: serialQueue.now.advanced(by: .seconds(4))) {
+    subscription.cancel()
+}
+
 // Challenge 1: second method
+
+//serialQueue.asyncAfter(deadline: .now() + 3.5) {
+//    subscription.cancel()
+//}
 
 
 /*:

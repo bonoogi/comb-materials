@@ -11,13 +11,17 @@ let queue = DispatchQueue(label: "serial queue")
 let currentThread = Thread.current.number
 print("Start computation publisher on thread \(currentThread)")
 
-let subscription = computationPublisher
-  .subscribe(on: queue)
-  .receive(on: DispatchQueue.main)
-  .sink { value in
-    let thread = Thread.current.number
-    print("Received computation result on thread \(thread): '\(value)'")
-  }
+DispatchQueue.global().async {
+    print("Subscribe occure on \(Thread.current.number)")
+    let subscription = computationPublisher
+        .receive(on: DispatchQueue.main)
+        .subscribe(on: DispatchQueue.main)
+        .subscribe(on: queue)
+        .sink { value in
+            let thread = Thread.current.number
+            print("Received computation result on thread \(thread): '\(value)'")
+        }
+}
 
 
 //: [Next](@next)

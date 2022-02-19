@@ -73,7 +73,7 @@ extension Publishers {
     }
 
     public func receive<S>(subscriber: S) where S : Subscriber, Failure == S.Failure, Output == S.Input {
-      Swift.print("ExpensiveComputation subscriber received on thread \(Thread.current.number)")
+        Swift.print("ExpensiveComputation subscriber received on thread \(Thread.current.number), isMain: \(Thread.current.isMainThread)")
       let subscription = ComputationSubscription(duration: duration,
                                                  sendCompletion: { subscriber.receive(completion: .finished) },
                                                  sendValue: { subscriber.receive($0) },

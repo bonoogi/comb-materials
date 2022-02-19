@@ -34,8 +34,144 @@ import XCTest
 import Combine
 
 class CombineOperatorsTests: XCTestCase {
-  
-  override func tearDown() {
-    
-  }
+
+    var subscriptions = Set<AnyCancellable>()
+
+    override func tearDown() {
+        subscriptions = []
+    }
+
+    func test_collect() {
+        // Given
+        let values = [0, 1, 2]
+        let publisher = values.publisher
+
+        // When
+        publisher
+            .collect()
+            .sink(receiveValue: {
+                // Then
+                XCTAssert(
+                    $0 == values,
+                    "Result was expected to be \(values) but wat \($0)"
+                )
+            })
+            .store(in: &subscriptions)
+    }
+
+    func test_flatMapWithMax2Publishers() {
+        // Given
+        // 1
+        let intSubject1 = PassthroughSubject<Int, Never>()
+        let intSubject2 = PassthroughSubject<Int, Never>()
+        let intSubject3 = PassthroughSubject<Int, Never>()
+
+        // 2
+        let publisher = CurrentValueSubject<PassthroughSubject<Int, Never>, Never>(intSubject1)
+
+        // 3
+        let expected = [1, 2, 4]
+        var results = [Int]()
+
+        // 4
+        publisher
+            .flatMap(maxPublishers: .max(2)) { $0 }
+            .sink(receiveValue: {
+                results.append($0)
+            })
+            .store(in: &subscriptions)
+
+        // When
+        // 5
+        intSubject1.send(1)
+
+        // 6
+        publisher.send(intSubject2)
+        intSubject2.send(2)
+
+        // 7
+        publisher.send(intSubject3)
+        intSubject3.send(3)
+        intSubject2.send(4)
+
+        // 8
+        publisher.send(completion: .finished)
+
+        // Then
+        XCTAssert(
+            results == expected
+        )
+    }
+
+    func test_timerPublish() {
+        // Given
+        // 1
+        func normalized(_ ti: TimeInterval) -> TimeInterval {
+            return Double(round(ti * 10) / 10)
+        }
+
+        // 2
+        let now = Date().timeIntervalSinceReferenceDate
+        // 3
+        let expectation = self.expectation(description: #function)
+        // 4
+        let expected = [0.5, 1, 1.5]
+        var results = [TimeInterval]()
+
+        // 5
+        let publisher = Timer
+            .publish(every: 0.5, on: .main, in: .common)
+            .autoconnect()
+            .prefix(3)
+
+        // When
+        publisher
+            .sink(
+                receiveCompletion: { _ in expectation.fulfill() },
+                receiveValue: {
+                    results.append(
+                        normalized($0.timeIntervalSinceReferenceDate - now)
+                    )
+                }
+            )
+            .store(in: &subscriptions)
+
+        // Then
+        // 6
+        waitForExpectations(timeout: 2, handler: nil)
+
+        // 7
+        XCTAssert(results == expected)
+    }
+
+    func test_shareReplay() {
+        // Given
+        // 1
+        let subject = PassthroughSubject<Int, Never>()
+        // 2
+        let publisher = subject.shareReplay(capacity: 1)
+        // 3
+        let expected = [0, 1, 2, 2, 3, 3]
+        var results = [Int]()
+
+        // When
+        // 4
+        publisher
+            .sink(receiveValue: { results.append($0) })
+            .store(in: &subscriptions)
+
+        // 5
+        subject.send(0)
+        subject.send(1)
+        subject.send(2)
+
+        // 6
+        publisher
+            .sink(receiveValue: { results.append($0) })
+            .store(in: &subscriptions)
+
+        subject.send(3)
+
+        XCTAssert(results == expected)
+    }
 }

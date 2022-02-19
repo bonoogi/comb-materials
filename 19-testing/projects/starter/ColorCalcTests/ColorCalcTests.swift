@@ -142,4 +142,37 @@ class ColorCalcTests: XCTestCase {
         // Then
         XCTAssertEqual(result, expected)
     }
+
+    func test_tappingClearWillClearHexDisplay() {
+        // Given
+        let expected = "#"
+        var result = ""
+
+        viewModel.$hexText
+            .dropFirst()
+            .sink(receiveValue: { result = $0 })
+            .store(in: &subscriptions)
+
+        // When
+        viewModel.process(CalculatorViewModel.Constant.clear)
+
+        // Then
+        XCTAssertEqual(expected, result)
+    }
+
+    func test_correctRGBOTextReceived() {
+        // Given
+        let expected = "0, 102, 54, 170"
+        var result = ""
+
+        viewModel.$rgboText
+            .sink(receiveValue: { result = $0 })
+            .store(in: &subscriptions)
+
+        // When
+        viewModel.hexText = "#006636AA"
+
+        // Then
+        XCTAssertEqual(result, expected)
+    }
 }
